@@ -1,6 +1,8 @@
 open Printf;;
 let n = 6;;
 let m = 2;;
+
+(* making adjacency list *)
 let adj_list = Array.make n [];;
 
 adj_list.(1) <- [2;3] ;
@@ -9,6 +11,7 @@ adj_list.(3) <- [4;5] ;
 adj_list.(4) <- [] ;
 adj_list.(5) <- [];;
 
+(* function to make in-degree array *)
 let make_in_degree adj deg =
   for i = 1 to (Array.length adj - 1) do 
     let ls = adj.(i) in 
@@ -16,6 +19,8 @@ let make_in_degree adj deg =
   done 
     
 
+
+(* in degree array *)
 
 let in_degree = Array.make n 0;;
 
@@ -40,9 +45,10 @@ let pool = T.setup_pool ~num_additional_domains:7 ();; *)
 
 (* let fun_queue =  Queue.empty;; *)
 
-let functions = Array.make n 0;;
+let functions = Lockfree.Mpmc_relaxed_queue.create ~size_exponent:3 ()
+;;
 
-let ind = ref 0;;
+let ind = Atomic.make 0;;
 let back = ref 0;;
 
 let rec execute x =
@@ -64,15 +70,15 @@ let  waste = ref 1;;
 let lock = Mutex.create ();;
 let thread_loop () =
   let ext = ref 0 in
-  while !ind < (n-1) do 
+  while Atomic.get ind < (n-1) do 
     Mutex.lock lock;
-    while functions.(!ind) = 0 do
+    while functions.(Atomic.get ind) = 0 do
       waste := !waste+1
     done;
-    ext := !ind;
-    ind := !ind+1;
+    ext := Atomic.get ind;
+    ind := Atomic.get ind+1;
     execute functions.(!ext);
-    printf "completed %d - %d\n%!" !ind functions.(!ext);
+    printf "completed %d - %d\n%!" (Atomic.get ind) functions.(!ext);
     Mutex.unlock lock
   done;
   printf "exit %!"
