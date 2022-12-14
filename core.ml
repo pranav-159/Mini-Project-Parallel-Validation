@@ -12,23 +12,22 @@ adj_list.(4) <- [] ;
 adj_list.(5) <- [];;
 
 (* function to make in-degree array *)
+(* makes an atomic in_degree array from adjacency list*)
 let make_in_degree adj deg =
   for i = 1 to (Array.length adj - 1) do 
     let ls = adj.(i) in 
-      List.iter (fun x -> deg.(x) <- deg.(x)+1) ls
+      List.iter (fun x -> Atomic.incr deg.(x)) ls
   done 
     
 
-
-(* in degree array *)
-
-let in_degree = Array.make n 0;;
-
-make_in_degree adj_list in_degree;;
-
-for i = 1 to (Array.length in_degree - 1) do 
-  printf "%d - %d\n" i in_degree.(i)
+(* initializing in_degree array*)
+let in_degree = Array.make n (Atomic.make 0);;
+for i = 1 to (Array.length in_degree -1) do
+  in_degree.(i) <- Atomic.make 0
 done;;
+
+(* making an in degree array*)  
+make_in_degree adj_list in_degree;;
 
 (* in_degree.(1) <- 0 ;
 in_degree.(2) <- 1 ; 
