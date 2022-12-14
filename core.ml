@@ -1,6 +1,6 @@
 open Printf;;
 let n = 6;;
-let m = 2;;
+let m = 6;;
 
 (* making adjacency list *)
 let adj_list = Array.make n [];;
@@ -47,50 +47,39 @@ let pool = T.setup_pool ~num_additional_domains:7 ();; *)
 
 let functions = Lockfree.Mpmc_relaxed_queue.create ~size_exponent:3 ()
 ;;
+module MPMCQueue = Lockfree.Mpmc_relaxed_queue.Not_lockfree;;
 
-let ind = Atomic.make 0;;
-let back = ref 0;;
+let counter = Atomic.make 0;;
 
 let rec execute x =
-  printf "started %d\n" x;
+  printf "started %d\n%!" x;
   Unix.sleep 2;
   let ls = adj_list.(x) in
   List.iter (fun x -> in_degree.(x) <- in_degree.(x)-1; 
-  if in_degree.(x) = 0 then begin
-    functions.(!back) <- x;
-    back := !back+1;
-  end ) 
+  if in_degree.(x) = 0 then ignore (MPMCQueue.push functions x)
+   ) 
   ls;
-  printf "ended %d\n" x;;
-  (* Atomic.fetch_and_add counter 1;
-  Atomic.compare_and_set *)
+  printf "ended %d\n%!" x;
+  Atomic.fetch_and_add counter 1
+;;
 
 let  waste = ref 1;;
 
-let lock = Mutex.create ();;
+
+
 let thread_loop () =
-  let ext = ref 0 in
-  while Atomic.get ind < (n-1) do 
-    Mutex.lock lock;
-    while functions.(Atomic.get ind) = 0 do
-      waste := !waste+1
-    done;
-    ext := Atomic.get ind;
-    ind := Atomic.get ind+1;
-    execute functions.(!ext);
-    printf "completed %d - %d\n%!" (Atomic.get ind) functions.(!ext);
-    Mutex.unlock lock
+  while (Atomic.get counter) != (n-1) do 
+    let x = MPMCQueue.pop functions in 
+      match x with
+      | None -> ()
+      | Some n -> ignore (execute n)
   done;
   printf "exit %!"
 
 
 let main () =
   for i = 1 to (n-1) do
-    if in_degree.(i) = 0 then begin
-      functions.(!back) <- i;
-      (* printf "%d " functions.(!back); *)
-      back := !back+1;
-    end
+    if in_degree.(i) = 0 then ignore (MPMCQueue.push functions i) 
   done;
   print_newline ();
   let p = Array.make m (Domain.spawn (fun () -> thread_loop ()))  in
